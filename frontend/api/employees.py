@@ -69,13 +69,32 @@ EMPLOYEES = [
     }
 ]
 
+import os
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        identities = EMPLOYEES
+        if DATABASE_URL and ("postgres" in DATABASE_URL or "neon" in DATABASE_URL or "railway" in DATABASE_URL):
+            try:
+                import psycopg2
+                from psycopg2.extras import RealDictCursor
+                conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+                cur = conn.cursor()
+                cur.execute("SELECT * FROM enterprise_identities ORDER BY employee_id")
+                rows = cur.fetchall()
+                conn.close()
+                if rows:
+                    identities = [dict(r) for r in rows]
+            except Exception as e:
+                pass
+
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
-        self.wfile.write(json.dumps(EMPLOYEES).encode('utf-8'))
+        self.wfile.write(json.dumps(identities).encode('utf-8'))
 
     def do_OPTIONS(self):
         self.send_response(200)

@@ -1,101 +1,128 @@
-"""
-AegisZero: Terminal Database CLI Viewer & Editor
-Inspect, query, add, edit, or reset employee records in aegiszero_enterprise.db
-"""
-
-import sqlite3
 import os
 import sys
+import time
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "aegiszero_enterprise.db")
+# Ensure Windows terminal doesn't crash on emojis
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
-def get_connection():
-    return sqlite3.connect(DB_PATH)
+# Auto import db_manager
+try:
+    import db_manager
+except ImportError:
+    from backend import db_manager
+
+def get_identities():
+    return db_manager.fetch_all_identities()
+
+def print_identities(identities):
+    mode = db_manager.get_db_mode()
+    print("\n" + "=" * 115)
+    print(f"AEGISZERO ENTERPRISE DATABASE VIEWER | MODE: [{mode}]")
+    print("=" * 115)
+    print(f"{'EMP ID':<10} {'NAME':<18} {'EMAIL':<30} {'ROLE':<20} {'DRIFT':<7} {'KEYS':<6} {'STATUS'}")
+    print("-" * 115)
+    for r in identities:
+        role = r.get("current_role") or r.get("role") or "N/A"
+        drift = f"{r.get('drift_days', 0)}d"
+        keys = str(r.get("admin_keys", 0))
+        status = r.get("access_status", "UNKNOWN")
+        print(f"{r.get('employee_id',''):<10} {r.get('name',''):<18} {r.get('email',''):<30} {role:<20} {drift:<7} {keys:<6} {status}")
+    print("=" * 120 + "\n")
 
 def view_identities():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT employee_id, name, email, current_role, drift_days, admin_keys, annual_waste_usd, access_status 
-        FROM enterprise_identities
-    """)
-    rows = cursor.fetchall()
-    conn.close()
-
-    print("\n" + "=" * 115)
-    print(f"{'ID':<10} {'NAME':<18} {'EMAIL':<30} {'ROLE':<20} {'DRIFT':<7} {'KEYS':<6} {'WASTE':<10} {'STATUS'}")
-    print("=" * 115)
-    for r in rows:
-        waste_str = f"${r[6]:,.0f}" if r[6] else "$0"
-        print(f"{r[0]:<10} {r[1]:<18} {r[2]:<30} {r[3]:<20} {str(r[4])+'d':<7} {str(r[5]):<6} {waste_str:<10} {r[7]}")
-    print("=" * 115 + "\n")
+    identities = get_identities()
+    print_identities(identities)
 
 def view_audit_logs():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, audit_id, employee_id, action, annual_savings_usd, sha256_hash, timestamp FROM audit_logs")
-    rows = cursor.fetchall()
-    conn.close()
-
+    mode = db_manager.get_db_mode()
     print("\n" + "=" * 115)
-    print(f"{'#':<4} {'AUDIT ID':<18} {'TARGET':<22} {'ACTION':<14} {'SAVINGS':<12} {'TIMESTAMP'}")
+    print(f"📜 AEGISZERO IMMUTABLE AUDIT LOGS | MODE: [{mode}]")
     print("=" * 115)
+    if mode == "POSTGRES_CLOUD":
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+        conn = psycopg2.connect(db_manager.DATABASE_URL, cursor_factory=RealDictCursor)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM audit_logs ORDER BY id DESC")
+        rows = cursor.fetchall()
+        conn.close()
+    else:
+        import sqlite3
+        conn = sqlite3.connect(db_manager.LOCAL_SQLITE_PATH)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM audit_logs ORDER BY id DESC").fetchall()
+        conn.close()
+
+    print(f"{'ID':<6} {'AUDIT ID':<18} {'TARGET':<22} {'ACTION':<16} {'SAVINGS':<12} {'TIMESTAMP'}")
+    print("-" * 115)
     if not rows:
-        print("  (No audit logs yet. Run the swarm to generate audit entries!)")
+        print("  (No audit logs recorded yet. Trigger remediation to generate SOC2 logs.)")
     for r in rows:
-        savings_str = f"${r[4]:,.0f}" if r[4] else "$0"
-        print(f"{r[0]:<4} {r[1]:<18} {r[2]:<22} {r[3]:<14} {savings_str:<12} {r[6]}")
+        r_dict = dict(r)
+        savings = f"${r_dict.get('annual_savings_usd', 0):,.0f}"
+        ts = str(r_dict.get("timestamp") or r_dict.get("created_at") or "")[:19]
+        print(f"{str(r_dict.get('id','')):<6} {r_dict.get('audit_id',''):<18} {r_dict.get('employee_id',''):<22} {r_dict.get('action',''):<16} {savings:<12} {ts}")
     print("=" * 115 + "\n")
 
-def update_status(employee_id, new_status, new_admin_keys=0):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE enterprise_identities 
-        SET access_status = ?, admin_keys = ? 
-        WHERE employee_id = ? OR email = ?
-    """, (new_status, new_admin_keys, employee_id, employee_id))
-    affected = cursor.rowcount
-    conn.commit()
-    conn.close()
-    if affected > 0:
-        print(f"✅ Success: Updated {employee_id} to status='{new_status}', admin_keys={new_admin_keys}")
-    else:
-        print(f"❌ Error: Employee {employee_id} not found in database.")
-
-def reset_all_to_baseline():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE enterprise_identities 
-        SET access_status = 'PENDING_REVIEW', admin_keys = 3 
-        WHERE drift_days > 0
-    """)
-    conn.commit()
-    conn.close()
-    print("🔄 Baseline Restored: Transferred employees set back to PENDING_REVIEW & admin_keys=3")
+def watch_live(interval=3):
+    print(f"👀 Live Watching Database every {interval}s... (Press Ctrl+C to stop)")
+    last_snapshot = None
+    try:
+        while True:
+            identities = get_identities()
+            current_snapshot = [(r['employee_id'], r['access_status'], r['admin_keys']) for r in identities]
+            if current_snapshot != last_snapshot:
+                # Clear screen in terminal if possible
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print(f"[LIVE UPDATE DETECTED at {time.strftime('%H:%M:%S')}]")
+                print_identities(identities)
+                last_snapshot = current_snapshot
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print("\nStopped live watching.")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         cmd = sys.argv[1].lower()
         if cmd == "view":
             view_identities()
+        elif cmd == "watch":
+            interval = int(sys.argv[2]) if len(sys.argv) > 2 else 2
+            watch_live(interval)
         elif cmd == "audit":
             view_audit_logs()
         elif cmd == "reset":
-            reset_all_to_baseline()
-            view_identities()
-        elif cmd == "set" and len(sys.argv) >= 4:
-            emp_id = sys.argv[2]
-            stat = sys.argv[3]
-            keys = int(sys.argv[4]) if len(sys.argv) > 4 else 0
-            update_status(emp_id, stat, keys)
+            mode = db_manager.get_db_mode()
+            if mode == "POSTGRES_CLOUD":
+                import psycopg2
+                conn = psycopg2.connect(db_manager.DATABASE_URL)
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE enterprise_identities
+                    SET access_status = 'PENDING_REVIEW',
+                        admin_keys = CASE 
+                            WHEN employee_id IN ('EMP-101', 'EMP-105') THEN 3 
+                            WHEN employee_id IN ('EMP-102', 'EMP-103') THEN 1 
+                            ELSE 0 
+                        END
+                    WHERE employee_id != 'EMP-104';
+                """)
+                conn.commit()
+                conn.close()
+            else:
+                db_manager.init_database()
+            print("🔄 Baseline Restored: Transferred employees set back to PENDING_REVIEW")
             view_identities()
         else:
             print("Usage:")
             print("  python view_database.py view              # Show all employees")
+            print("  python view_database.py watch             # Live watch updates in real-time")
             print("  python view_database.py audit             # Show immutable audit logs")
             print("  python view_database.py reset             # Reset records to baseline")
-            print("  python view_database.py set EMP-101 REVOKED 0   # Change status")
     else:
         view_identities()
