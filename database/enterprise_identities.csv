@@ -1,0 +1,6 @@
+employee_id,name,email,previous_role,current_role,drift_days,active_apps,monthly_cost,admin_keys,annual_waste_usd,access_status
+EMP-101,David Chen,david@gmail.com,Payment Gateway,Internal Tooling,75,"AWS Root, Figma Pro, Datadog Admin, GitHub",1476,3,17700,PENDING_REVIEW
+EMP-102,Sarah Jenkins,sarah.jenkins@company.com,UI/UX Design,Marketing & Growth,120,"Figma Pro, Salesforce Admin, Miro",395,1,2940,PENDING_REVIEW
+EMP-103,Marcus Vance,marcus.vance@company.com,Infra On-Call,Customer Success,60,"AWS DB Admin, PagerDuty, Zendesk",1344,1,14940,PENDING_REVIEW
+EMP-104,Elena Rostova,elena.rostova@company.com,Mobile Engineering,Mobile Engineering,0,"GitHub Dev, Apple Org, Figma Viewer",36,0,0,COMPLIANT
+EMP-105,Tariq Al-Mansoor,tariq.almansoor@company.com,Cloud Contractor,Data Science,90,"Snowflake Admin, AWS Admin, GitHub",2071,3,19920,PENDING_REVIEW

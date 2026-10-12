@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "aegiszero-enterprise",
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/api/health", "destination": "/api/health.py" },
+    { "source": "/api/employees", "destination": "/api/employees.py" },
+    { "source": "/api/run-swarm", "destination": "/api/run-swarm.py" }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "aegiszero-enterprise-cockpit",
+  "version": "1.0.0",
+  "description": "AegisZero: Autonomous Zero-Trust Identity & SaaS FinOps Swarm - Vercel Frontend",
+  "scripts": {
+    "start": "serve ."
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}

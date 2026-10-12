@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Secrets & Environment
+.env
+.env.local
+*.env
+
+# Database
+*.db
+*.sqlite
+*.db-journal
+
+# Node / Vercel
+node_modules/
+.vercel/
+dist/
+build/
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
