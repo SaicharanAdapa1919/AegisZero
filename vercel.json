@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "name": "aegiszero-enterprise",
+  "cleanUrls": true,
+  "builds": [
+    {
+      "src": "frontend/index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "frontend/api/*.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    { "src": "/api/health", "dest": "/frontend/api/health.py" },
+    { "src": "/api/employees", "dest": "/frontend/api/employees.py" },
+    { "src": "/api/run-swarm", "dest": "/frontend/api/run-swarm.py" },
+    { "src": "/(.*)", "dest": "/frontend/$1" }
+  ]
+}
